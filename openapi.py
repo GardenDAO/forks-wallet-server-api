@@ -26,9 +26,21 @@ if not os.path.exists(log_dir):
 logzero.logfile(os.path.join(log_dir, "api.log"))
 
 
-async def get_full_node_client() -> FullNodeRpcClient:
-    config = settings.CHIA_CONFIG
-    full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CHIA_ROOT_PATH, settings.CHIA_CONFIG)
+# HERE is where we can parametrize to connect to the different chains
+# TODO make this cleaner / more extensible later for adding new forks without code
+async def get_full_node_client(fork) -> FullNodeRpcClient:
+    if fork == 'xch':
+        config = settings.CHIA_CONFIG
+        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CHIA_ROOT_PATH, settings.CHIA_CONFIG)
+    if fork == 'xfl':
+        config = settings.FLORA_CONFIG
+        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.FLORA_ROOT_PATH, settings.FLORA_CONFIG)
+    if fork == 'xcd':
+        config = settings.CRYPTODOGE_CONFIG
+        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CRYPTODOGE_ROOT_PATH, settings.CRYPTODOGE_CONFIG)
+    if fork == 'hdd':
+        config = settings.HDDCOIN_CONFIG
+        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.HDDCOIN_ROOT_PATH, settings.HDDCOIN_CONFIG)
     return full_node_client
 
 
@@ -42,7 +54,11 @@ async def redis_pool(db: int = 0):
 
 @app.on_event("startup")
 async def startup():
-    app.state.client = await get_full_node_client()
+    #for fork in settings.FORKS:
+    #    app.state.client = await get_full_node_client(fork)
+    #    # check full node connect
+    #    await app.state.client.get_blockchain_state()
+    app.state.client = await get_full_node_client('xch')
     # check full node connect
     await app.state.client.get_blockchain_state()
     app.state.redis = await redis_pool()
@@ -76,6 +92,11 @@ def coin_to_json(coin):
 
 router = APIRouter()
 
+@router.get("/")
+#@app.get("/")
+async def read_root():
+    return {"Hello": "Chia World"}
+
 
 class UTXO(BaseModel):
     parent_coin_info: str
@@ -83,7 +104,7 @@ class UTXO(BaseModel):
     amount: str
 
 
-@router.get("/utxos", response_model=List[UTXO])
+#@router.get("/utxos", response_model=List[UTXO])
 async def get_utxos(address: str, request: Request):
     # todo: use block indexer and support unconfirmed param
     pzh = decode_puzzle_hash(address)
@@ -92,7 +113,7 @@ async def get_utxos(address: str, request: Request):
     cache_data = await redis.get(cache_key)
     if cache_data is not None:
         return json.loads(cache_data)
-    
+
     full_node_client = request.app.state.client
     coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=pzh, include_spent_coins=True)
     data = []
@@ -101,24 +122,26 @@ async def get_utxos(address: str, request: Request):
         if row.spent:
             continue
         data.append(coin_to_json(row.coin))
-    
+
     await redis.set(cache_key, json.dumps(data, ensure_ascii=False), ex=10)
     return data
 
 
-@router.post("/sendtx")
-async def create_transaction(request: Request, item = Body({})):
+@app.post("/blockchain/{blockchain_id}/sendtx")
+#@router.post("/blockchain/{blockchain_id}/sendtx")
+async def create_transaction(blockchain_id: str, request: Request, item = Body({})):
     spb = SpendBundle.from_json_dict(item['spend_bundle'])
     full_node_client = request.app.state.client
-    
+
     try:
         resp = await full_node_client.push_tx(spb)
     except ValueError as e:
         logger.warning("sendtx: %s, error: %r", spb, e)
         raise HTTPException(400, str(e))
- 
+
     return {
         'status': resp['status'],
+        'blockchain_id': blockchain_id,
         'id': spb.name().hex()
     }
 
@@ -128,7 +151,7 @@ class ChiaRpcParams(BaseModel):
     params: Optional[Dict] = None
 
 
-@router.post('/chia_rpc')
+#@router.post('/chia_rpc')
 async def full_node_rpc(request: Request, item: ChiaRpcParams):
     # todo: limit method and add cache
     full_node_client = request.app.state.client
@@ -152,8 +175,9 @@ async def get_user_balance(puzzle_hash: bytes, request: Request):
     return amount
 
 
-@router.get('/balance')
-async def query_balance(address, request: Request):
+@app.get("/blockchain/{blockchain_id}/address/{address}/balance")
+#@router.get("/blockchain/{blockchain_id}/address/{address}/balance")
+async def query_balance(blockchain_id: str, address: str, request: Request):
     # todo: use block indexer and support unconfirmed param
     puzzle_hash = decode_puzzle_hash(address)
     redis = request.app.state.redis
@@ -203,7 +227,7 @@ DEFAULT_TOKEN_LIST = [
 ]
 
 
-@router.get('/tokens')
+#@router.get('/tokens')
 async def list_tokens():
     return DEFAULT_TOKEN_LIST
 
