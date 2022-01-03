@@ -39,6 +39,9 @@ point browser to
 
 http://127.0.0.1:8000/
 
+NOTE that API endpoints start with a version prefix, e.g. "/v1"
+
+
 ### Response Format
 
 JSON, request & response format, similar approach to Kraken exchange Rest API replies, https://docs.kraken.com/rest/
