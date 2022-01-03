@@ -16,6 +16,7 @@ CHIA_CONFIG = load_config(CHIA_ROOT_PATH, "config.yaml")
 # in multiple copies of the code across various forks.
 #
 # TODO error handling if files don't exist
+# TODO use an array to hold these
 FLORA_ROOT_PATH = Path(os.path.expanduser(os.getenv("FLORA_ROOT", "~/.flora/mainnet"))).resolve()
 FLORA_CONFIG = load_config(FLORA_ROOT_PATH, "config.yaml")
 

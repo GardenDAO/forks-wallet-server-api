@@ -26,7 +26,7 @@ if not os.path.exists(log_dir):
 logzero.logfile(os.path.join(log_dir, "api.log"))
 
 
-# HERE is where we can parametrize to connect to the different chains
+# Here is where we can parametrize to connect to the different chains
 # TODO make this cleaner / more extensible later for adding new forks without code
 async def get_full_node_client(fork) -> FullNodeRpcClient:
     if fork == 'xch':
@@ -92,10 +92,9 @@ def coin_to_json(coin):
 
 router = APIRouter()
 
-@router.get("/")
-#@app.get("/")
+@app.get("/")
 async def read_root():
-    return {"Hello": "Chia World"}
+    return {"Hello": "Chia World, remember to include /v1/ in the url's"}
 
 
 class UTXO(BaseModel):
@@ -127,8 +126,7 @@ async def get_utxos(address: str, request: Request):
     return data
 
 
-@app.post("/blockchain/{blockchain_id}/sendtx")
-#@router.post("/blockchain/{blockchain_id}/sendtx")
+@router.post("/blockchain/{blockchain_id}/sendtx")
 async def create_transaction(blockchain_id: str, request: Request, item = Body({})):
     spb = SpendBundle.from_json_dict(item['spend_bundle'])
     full_node_client = request.app.state.client
@@ -139,10 +137,10 @@ async def create_transaction(blockchain_id: str, request: Request, item = Body({
         logger.warning("sendtx: %s, error: %r", spb, e)
         raise HTTPException(400, str(e))
 
-    return {
+    return { 'result': {
         'status': resp['status'],
-        'blockchain_id': blockchain_id,
         'id': spb.name().hex()
+        }
     }
 
 
@@ -175,7 +173,7 @@ async def get_user_balance(puzzle_hash: bytes, request: Request):
     return amount
 
 
-@app.get("/blockchain/{blockchain_id}/address/{address}/balance")
+@router.get("/blockchain/{blockchain_id}/address/{address}/balance")
 #@router.get("/blockchain/{blockchain_id}/address/{address}/balance")
 async def query_balance(blockchain_id: str, address: str, request: Request):
     # todo: use block indexer and support unconfirmed param
@@ -187,7 +185,9 @@ async def query_balance(blockchain_id: str, address: str, request: Request):
         return json.loads(cache_data)
     amount = await get_user_balance(puzzle_hash, request)
     data = {
-        'amount': amount
+        'result': {
+            'amount': amount
+        }
     }
     await redis.set(cache_key, json.dumps(data, ensure_ascii=False), ex=10)
     return data
