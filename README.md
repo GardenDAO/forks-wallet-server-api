@@ -22,16 +22,18 @@ git clone https://github.com/GardenDAO/forks-wallet-server-api
 # change config.py
 
 pip install -r requirements.txt
-uvicorn openapi:app
+uvicorn openapi:app --host 0.0.0.0
 ```
 
 
 ## dev
+Requires Python 3.7+ (due to chia-blockchain package)
+
 c. Run python3 -m venv venv to create a virtual environment.
 
 d. Run . ./venv/bin/activate to activate the virtual environment.
 
-e. Run pip install .. This will take a few minutes.
+e. Run pip install -r requirements.txt  This may take a few minutes.
 
 uvicorn openapi:app --reload
 
@@ -40,7 +42,7 @@ point browser to
 http://127.0.0.1:8000/
 
 NOTE that API endpoints start with a version prefix, e.g. "/v1"
-
+e.g. /v1/blockchain/xch/address/xch175hfws7whwsym5sstm2pkmmav42tf8vnk23pa703nkyyaj6mn7rqrssep7/balance
 
 ### Response Format
 
@@ -51,43 +53,57 @@ Response data is in "result". If there were errors in processing request, detail
 Output listed below will be inside the "result" object.
 
 
-### GetBalance
+### Get Balance
+
+URI: /v1/blockchain/blockchain_ID/address/address_ID/balance
 
 Get current balance of a wallet address
 
     Input
-    address: wallet address
-    blockchain: blockchain ID (ticker symbol, e.g. "xch", lowercase)
+    address_ID: wallet address
+    blockchain_ID: blockchain's ticker symbol, e.g. "xch", lowercase
     [ possible future expansion: token list? (optional): default is primary token of the blockchain ]
 
     Output
       balance: balance of the address on the requested blockchain, amount in integer in unit of lowest denomination of the token, e.g. mojos for xch/chia
 
 
-### SendTx (POST)
+### Send Transaction (POST)
+
+URI - POST: /v1/blockchain/blockchain_ID/send
 
 Receive Transaction from client, log as appropriate, submit to the appropriate blockchain network, and return a response code.
 
     Input
-    tx - Transaction Bundle (POST body)
-    blockchain - which blockchain to submit the transaction to, blockchain ID (ticker symbol, e.g. "xch", lowercase)
+    tx: Transaction Bundle, in the POST body
+    blockchain_ID - which blockchain to submit the transaction to, ticker symbol, e.g. "xch", lowercase
 
     Output
     status: response from full node client
     id: id if available/relevant
-    TBD info: Some blockchain information, like transaction id; error code if error encountered, need to review standard api approach on this quickly again
+    [TBD maybe in future: info: Some blockchain information, like transaction id; error code if error encountered, need to review standard api approach on this quickly again]
 
 
-### GetTx
+### Get Transactions
 
-Given a date range, get all transactions during that range.
+URI - POST: /v1/blockchain/blockchain_ID/address/address_ID/transactions
+
+For a given wallet address on a given blockchain, get all transactions
 
     Input
-    address: wallet address
-    Start Date: Start date of the query
-    End Date: End date of the query
+    address_ID: wallet address
+    blockchain_ID: blockchain's ticker symbol, e.g. "xch", lowercase
+
+    [ NOT IMPLEMENTED startdate: Start date of the query, unix timestamp milliseconds (or by block number??)   enddate: End date of the query, unix timestamp milliseconds]
+
     Output
-    A list of transactions
+    transactions: each with these properties:
+      type: 'receive' or 'send' (receive implemented first)
+      transactions: [],
+      timestamp: row.timestamp,
+      block: row.confirmed_block_index,
+      amount: row.coin.amount,
+      fee: row.coin.amount, # TODO this looks wrong
 
 
 [ GetBalances - possibly later]
