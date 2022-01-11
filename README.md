@@ -12,6 +12,9 @@ TODO: API versioning approach, using fastapi?
 
 possible Forks Wallet Server API servicing domain name: api.forkswallet.gardendao.org
 
+Default config file assumes same user that is running the blockchain nodes is running this api server, and has
+support for XCH, XFL, XCD and HDD configured.
+
 
 ## Install
 
@@ -97,7 +100,7 @@ For a given wallet address on a given blockchain, get all transactions
     [ NOT IMPLEMENTED startdate: Start date of the query, unix timestamp milliseconds (or by block number??)   enddate: End date of the query, unix timestamp milliseconds]
 
     Output
-    transactions: each with these properties:
+    transactions: list of transactions, each with a key of parent_coin_info and these properties:
       type: 'receive' or 'send' (receive implemented first)
       transactions: [],
       timestamp: row.timestamp,

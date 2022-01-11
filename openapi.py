@@ -30,7 +30,10 @@ logzero.logfile(os.path.join(log_dir, "api.log"))
 # Here is where we can parametrize to connect to the different chains
 # TODO make this cleaner / more extensible later for adding new forks without code
 async def get_full_node_client(fork) -> FullNodeRpcClient:
-    if fork == 'xch':
+    config = settings.CHAIN_CONFIG[fork]
+    full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.ROOT_PATH[fork], settings.CHAIN_CONFIG[fork])
+
+    """if fork == 'xch':
         config = settings.CHIA_CONFIG
         full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CHIA_ROOT_PATH, settings.CHIA_CONFIG)
     if fork == 'xfl':
@@ -42,6 +45,7 @@ async def get_full_node_client(fork) -> FullNodeRpcClient:
     if fork == 'hdd':
         config = settings.HDDCOIN_CONFIG
         full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.HDDCOIN_ROOT_PATH, settings.HDDCOIN_CONFIG)
+    """
     return full_node_client
 
 
@@ -59,9 +63,11 @@ async def startup():
     #    app.state.client = await get_full_node_client(fork)
     #    # check full node connect
     #    await app.state.client.get_blockchain_state()
-    app.state.client = await get_full_node_client('xch')
-    # check full node connect
-    await app.state.client.get_blockchain_state()
+    app.state.client = {}
+    for fork in settings.FORKS:
+        app.state.client[fork] = await get_full_node_client(fork)
+        # check full node connect
+        await app.state.client[fork].get_blockchain_state()
     app.state.redis = await redis_pool()
 
 
@@ -69,8 +75,9 @@ async def startup():
 async def shutdown():
     await app.state.redis.close()
 
-    app.state.client.close()
-    await app.state.client.await_closed()
+    for fork in settings.FORKS:
+        app.state.client[fork].close()
+        await app.state.client[fork].await_closed()
 
 
 def to_hex(data: bytes):
@@ -114,7 +121,7 @@ async def get_utxos(blockchain_id: str, address: str, request: Request):
     if cache_data is not None:
         return json.loads(cache_data)
 
-    full_node_client = request.app.state.client
+    full_node_client = request.app.state.client[blockchain_id]
     coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=pzh, include_spent_coins=True)
     data = []
 
@@ -130,7 +137,7 @@ async def get_utxos(blockchain_id: str, address: str, request: Request):
 @router.post("/blockchain/{blockchain_id}/send") # Note: would be nice not to include /send at end, but probably invitation for future problems
 async def create_transaction(blockchain_id: str, request: Request, item = Body({})):
     spb = SpendBundle.from_json_dict(item['tx'])
-    full_node_client = request.app.state.client
+    full_node_client = request.app.state.client[blockchain_id]
 
     try:
         resp = await full_node_client.push_tx(spb)
@@ -145,28 +152,28 @@ async def create_transaction(blockchain_id: str, request: Request, item = Body({
     }
 
 
-class ChiaRpcParams(BaseModel):
-    method: str
-    params: Optional[Dict] = None
+#class ChiaRpcParams(BaseModel):
+#    method: str
+#    params: Optional[Dict] = None
 
 
 #@router.post('/chia_rpc')
-async def full_node_rpc(request: Request, item: ChiaRpcParams):
-    # todo: limit method and add cache
-    full_node_client = request.app.state.client
-    async with full_node_client.session.post(full_node_client.url + item.method, json=item.params, ssl_context=full_node_client.ssl_context) as response:
-        res_json = await response.json()
-        return res_json
+#async def full_node_rpc(request: Request, item: ChiaRpcParams):
+#    # todo: limit method and add cache
+#    full_node_client = request.app.state.client
+#    async with full_node_client.session.post(full_node_client.url + item.method, json=item.params, ssl_context=full_node_client.ssl_context) as response:
+#        res_json = await response.json()
+#        return res_json
 
 
-async def get_user_balance(puzzle_hash: bytes, request: Request):
+async def get_user_balance(puzzle_hash: bytes, blockchain: str, request: Request):
     redis = request.app.state.redis
 
     data = await redis.get(f'balance:{puzzle_hash.hex()}')
     if data is not None:
         return int(data)
 
-    full_node_client = request.app.state.client
+    full_node_client = request.app.state.client[blockchain]
     coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=True)
     amount = sum([c.coin.amount for c in coin_records if c.spent == 0])
 
@@ -184,7 +191,7 @@ async def query_balance(blockchain_id: str, address: str, request: Request):
     cache_data = await redis.get(cache_key)
     if cache_data is not None:
         return json.loads(cache_data)
-    amount = await get_user_balance(puzzle_hash, request)
+    amount = await get_user_balance(puzzle_hash, blockchain_id, request)
     data = {
         'result': {
             'amount': amount
@@ -197,13 +204,13 @@ async def query_balance(blockchain_id: str, address: str, request: Request):
 # for filtering tranactions by end_date
 
 
-async def get_user_transactions(puzzle_hash: bytes, request: Request): #, start_date: int, end_date: int,
+async def get_user_transactions(puzzle_hash: bytes, blockchain: str, request: Request): #, start_date: int, end_date: int,
     #redis = request.app.state.redis
     #data = await redis.get(f'balance:{puzzle_hash.hex()}')
     #if data is not None:
     #    return int(data)
 
-    full_node_client = request.app.state.client
+    full_node_client = request.app.state.client[blockchain]
 
     # first we get coinrecord history for this address/puzzle hash
     coin_records = await full_node_client.get_coin_records_by_puzzle_hash(puzzle_hash=puzzle_hash, include_spent_coins=True)
@@ -260,7 +267,7 @@ async def transactions(blockchain_id: str, address: str, request: Request): # st
     #cache_data = await redis.get(cache_key)
     #if cache_data is not None:
     #    return json.loads(cache_data)
-    user_transactions = await get_user_transactions(puzzle_hash, request)
+    user_transactions = await get_user_transactions(puzzle_hash, blockchain_id, request)
     data = {
         'result': {
             'transactions': user_transactions
