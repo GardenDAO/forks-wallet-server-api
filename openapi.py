@@ -33,19 +33,6 @@ async def get_full_node_client(fork) -> FullNodeRpcClient:
     config = settings.CHAIN_CONFIG[fork]
     full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.ROOT_PATH[fork], settings.CHAIN_CONFIG[fork])
 
-    """if fork == 'xch':
-        config = settings.CHIA_CONFIG
-        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CHIA_ROOT_PATH, settings.CHIA_CONFIG)
-    if fork == 'xfl':
-        config = settings.FLORA_CONFIG
-        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.FLORA_ROOT_PATH, settings.FLORA_CONFIG)
-    if fork == 'xcd':
-        config = settings.CRYPTODOGE_CONFIG
-        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.CRYPTODOGE_ROOT_PATH, settings.CRYPTODOGE_CONFIG)
-    if fork == 'hdd':
-        config = settings.HDDCOIN_CONFIG
-        full_node_client = await FullNodeRpcClient.create(config['self_hostname'], config['full_node']['rpc_port'], settings.HDDCOIN_ROOT_PATH, settings.HDDCOIN_CONFIG)
-    """
     return full_node_client
 
 
@@ -274,7 +261,7 @@ async def transactions(blockchain_id: str, address: str, request: Request): # st
         }
     }
     #await redis.set(cache_key, json.dumps(data, ensure_ascii=False), ex=10)
-    return json.dumps(data, ensure_ascii=False)
+    return data
 
 DEFAULT_TOKEN_LIST = [
     {

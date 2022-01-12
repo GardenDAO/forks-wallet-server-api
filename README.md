@@ -89,7 +89,7 @@ Receive Transaction from client, log as appropriate, submit to the appropriate b
 
 ### Get Transactions
 
-URI - POST: /v1/blockchain/blockchain_ID/address/address_ID/transactions
+URI: /v1/blockchain/blockchain_ID/address/address_ID/transactions
 
 For a given wallet address on a given blockchain, get all transactions
 
