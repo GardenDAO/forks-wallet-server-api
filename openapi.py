@@ -212,12 +212,28 @@ async def get_user_transactions(puzzle_hash: bytes, blockchain: str, request: Re
             continue
         # get the parent coin
         parent_coin = await full_node_client.get_coin_record_by_name(row.coin.parent_coin_info)
-        # TODO confirm parent_coin exists / was returned
+        # TODO confirm parent_coin exists / was returned (Implemented)
+        if not parent_coin.success:
+            raise HTTPException(status_code=404, detail="Could not fetch parent coin record")
         # make sure parent is not coin itself
         #logging.warning(parent_coin)
         #logging.warning(row)
-        if 1: #TODO FIGURE THIS OUT parent_coin.coin.puzzle_hash != puzzle_hash:
-            # TODO make sure not already in data
+        if hash(parent_coin.coin.puzzle_hash) != hash(puzzle_hash): #TODO FIGURE THIS OUT parent_coin.coin.puzzle_hash != puzzle_hash(implemented):
+            # TODO make sure not already in data(Implemented)
+            if not encode_puzzle_hash(row.coin.parent_coin_info, "xch") in data:
+                data[encode_puzzle_hash(row.coin.parent_coin_info, "xch")] = {
+                    'type': 'receive',
+                    'transactions': [],
+                    'timestamp': row.timestamp,
+                    'block': row.confirmed_block_index,
+                    'amount': row.coin.amount,
+                    # 'fee': row.coin.amount, # TODO this looks wrong
+                }
+            group = data[encode_puzzle_hash(row.coin.parent_coin_info, "xch")]
+            group.transactions.append({
+                'sender': hash(parent_coin.coin.puzzle_hash),
+                'amount': row.coin.amount
+            })
             #logging.info(row.coin)
             #data[0] = {
             #index = 0
@@ -227,14 +243,7 @@ async def get_user_transactions(puzzle_hash: bytes, blockchain: str, request: Re
             #    logging.warning("unicode decode error")
             #    logging.warning(row)
             #    index = 1
-            data[encode_puzzle_hash(row.coin.parent_coin_info, "xch")] = {
-                'type': 'receive',
-                #'transactions': [],
-                'timestamp': row.timestamp,
-                'block': row.confirmed_block_index,
-                'amount': row.coin.amount,
-                #'fee': row.coin.amount, # TODO this looks wrong
-            }
+
         #data.append(coin_to_json(row.coin))
 
     # next for each coinrecord we pull out the data and organize it to record to the request
