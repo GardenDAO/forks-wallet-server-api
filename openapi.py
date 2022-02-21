@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from chia.rpc.full_node_rpc_client import FullNodeRpcClient
 from chia.util.bech32m import encode_puzzle_hash, decode_puzzle_hash as inner_decode_puzzle_hash
+from chia.util import hash
 from chia.types.spend_bundle import SpendBundle
 from chia.types.blockchain_format.program import Program
 import config as settings
@@ -234,6 +235,31 @@ async def get_user_transactions(puzzle_hash: bytes, blockchain: str, request: Re
                 'sender': hash(parent_coin.coin.puzzle_hash),
                 'amount': row.coin.amount
             })
+        if row.spent:
+            coin_id = str(hash(row.coin))
+            block_result = await full_node_client.get_block_record_by_height(row.spent_block_index)
+            if not block_result.success:
+                raise HTTPException(status_code=404, detail="Could not fetch block")
+            updates_result = await full_node_client.get_additions_and_removals(block_result.block_record.header_hash)
+            if not updates_result.success:
+                raise HTTPException(status_code=404, detail="Cound not fetch additions and removals")
+            group = {
+                'type': 'send',
+                'transactions': [],
+                'timestamp': block_result.block_record.timestamp,
+                'block': row.spent_block_index,
+                'amount': row.coin.amount,
+                'fee': row.coin.amount
+            }
+            additions = list(filter((lambda record: record.coin.parent_coin_info == coin_id), updates_result.additions))
+            for child in additions:
+                if child.coin.puzzle_hash != puzzle_hash:
+                    group.transactions.push({
+                        'destination': str(hash(child.coin.puzzle_hash)),
+                        'amount': child.coin.amount,
+                    })
+                group.fee -= child.coin.amount
+            data.append(group)
             #logging.info(row.coin)
             #data[0] = {
             #index = 0
