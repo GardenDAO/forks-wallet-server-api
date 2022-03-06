@@ -209,20 +209,22 @@ async def get_user_transactions(puzzle_hash: bytes, blockchain: str, request: Re
         #if row.spent:
         #    continue
         # skip if amount is 0
+        logging.warning(row)
         if row.coin.amount == 0:
             continue
         # get the parent coin
         parent_coin = await full_node_client.get_coin_record_by_name(row.coin.parent_coin_info)
         # TODO confirm parent_coin exists / was returned (Implemented)
-        if not parent_coin.success:
-            raise HTTPException(status_code=404, detail="Could not fetch parent coin record")
+        #print(parent_coin)
+        #if not parent_coin.success:
+            #raise HTTPException(status_code=404, detail="Could not fetch parent coin record")
         # make sure parent is not coin itself
         #logging.warning(parent_coin)
-        #logging.warning(row)
-        if hash(parent_coin.coin.puzzle_hash) != hash(puzzle_hash): #TODO FIGURE THIS OUT parent_coin.coin.puzzle_hash != puzzle_hash(implemented):
+
+        if str(parent_coin.coin.puzzle_hash) != str(puzzle_hash): #TODO FIGURE THIS OUT parent_coin.coin.puzzle_hash != puzzle_hash(implemented):
             # TODO make sure not already in data(Implemented)
-            if not encode_puzzle_hash(row.coin.parent_coin_info, "xch") in data:
-                data[encode_puzzle_hash(row.coin.parent_coin_info, "xch")] = {
+            if not encode_puzzle_hash(row.coin.parent_coin_info, blockchain) in data:
+                data[encode_puzzle_hash(row.coin.parent_coin_info, blockchain)] = {
                     'type': 'receive',
                     'transactions': [],
                     'timestamp': row.timestamp,
@@ -230,28 +232,29 @@ async def get_user_transactions(puzzle_hash: bytes, blockchain: str, request: Re
                     'amount': row.coin.amount,
                     # 'fee': row.coin.amount, # TODO this looks wrong
                 }
-            group = data[encode_puzzle_hash(row.coin.parent_coin_info, "xch")]
-            group.transactions.append({
-                'sender': hash(parent_coin.coin.puzzle_hash),
+            group = data[encode_puzzle_hash(row.coin.parent_coin_info, blockchain)]
+            group['transactions'].append({
+                'sender': str(parent_coin.coin.puzzle_hash),
                 'amount': row.coin.amount
             })
         if row.spent:
-            coin_id = str(hash(row.coin))
+            coin_id = str(row.coin)
             block_result = await full_node_client.get_block_record_by_height(row.spent_block_index)
-            if not block_result.success:
-                raise HTTPException(status_code=404, detail="Could not fetch block")
-            updates_result = await full_node_client.get_additions_and_removals(block_result.block_record.header_hash)
-            if not updates_result.success:
-                raise HTTPException(status_code=404, detail="Cound not fetch additions and removals")
+            #if not block_result.success:
+             #   raise HTTPException(status_code=404, detail="Could not fetch block")
+            updates_result = await full_node_client.get_additions_and_removals(block_result.header_hash)
+            #if not updates_result.success:
+             #   raise HTTPException(status_code=404, detail="Cound not fetch additions and removals")
             group = {
                 'type': 'send',
                 'transactions': [],
-                'timestamp': block_result.block_record.timestamp,
+                'timestamp': block_result.timestamp,
                 'block': row.spent_block_index,
                 'amount': row.coin.amount,
                 'fee': row.coin.amount
             }
-            additions = list(filter((lambda record: record.coin.parent_coin_info == coin_id), updates_result.additions))
+            print(list(updates_result))
+            additions = list(filter((lambda record: record[0][0] == coin_id), updates_result))
             for child in additions:
                 if child.coin.puzzle_hash != puzzle_hash:
                     group.transactions.push({
