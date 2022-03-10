@@ -38,7 +38,9 @@ d. Run . ./venv/bin/activate to activate the virtual environment.
 
 e. Run pip install -r requirements.txt  This may take a few minutes.
 
+```
 uvicorn openapi:app --reload
+```
 
 point browser to
 
@@ -46,6 +48,15 @@ http://127.0.0.1:8000/
 
 NOTE that API endpoints start with a version prefix, e.g. "/v1"
 e.g. /v1/blockchain/xch/address/xch175hfws7whwsym5sstm2pkmmav42tf8vnk23pa703nkyyaj6mn7rqrssep7/balance
+
+
+## Running in Production
+
+Run it in production with gunicorn, for example:
+
+```
+gunicorn openapi:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8081
+```
 
 ### Response Format
 

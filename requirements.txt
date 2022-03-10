@@ -4,3 +4,4 @@ chia-blockchain==1.2.11
 uvicorn[standard]==0.15.0
 aioredis==2.0.0
 logzero
+gunicorn
